@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Vector;
+import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 
 import megamek.client.ui.swing.util.PlayerColour;
 import megamek.common.hexarea.BorderHexArea;
@@ -592,18 +594,14 @@ public final class Player extends TurnOrdered {
             return 0;
         }
 
-        int bonus = 0;
-        for (InGameObject object : game.getInGameObjects()) {
-            if (object instanceof Entity && ((Entity) object).getOwner().equals(this)) {
-                Entity entity = (Entity) object;
-                if (game.getOptions().booleanOption(OptionsConstants.ADVANCED_TACOPS_MOBILE_HQS)) {
-                    bonus = Math.max(entity.getHQIniBonus(), bonus);
-                }
-
-                bonus = Math.max(bonus, entity.getQuirkIniBonus());
-            }
+        int hqBonus = 0;
+        if (game.getOptions().booleanOption(OptionsConstants.ADVANCED_TACOPS_MOBILE_HQS)) {
+            hqBonus = getMaxBonusFromEntities(Entity::getHQIniBonus, entity -> true);
         }
-        return bonus;
+
+        int quirkBonus = getMaxBonusFromEntities(Entity::getQuirkIniBonus, entity -> true);
+
+        return Math.max(hqBonus, quirkBonus);
     }
 
     /**
@@ -614,38 +612,43 @@ public final class Player extends TurnOrdered {
         if (game == null) {
             return 0;
         }
-        int commandb = 0;
-        for (InGameObject unit : game.getInGameObjects()) {
-            if (unit instanceof Entity) {
-                Entity entity = (Entity) unit;
-                boolean useCommandInit = game.getOptions().booleanOption(OptionsConstants.RPG_COMMAND_INIT);
-                boolean checkThisTurn = ((null != entity.getOwner())
-                      && entity.getOwner().equals(this)
-                      && !entity.isDestroyed()
-                      && entity.getCrew().isActive()
-                      && !entity.isCaptured()
-                      && !(entity instanceof MekWarrior))
-                      && ((entity.isDeployed() && !entity.isOffBoard()) || (entity.getDeployRound() == (game.getCurrentRound() + 1)));
-                if (checkThisTurn) {
-                    int bonus = 0;
-                    if (useCommandInit) {
-                        bonus = entity.getCrew().getCommandBonus();
-                    }
-                    //Even if the RPG option is not enabled, we still get the command bonus provided by special equipment.
-                    //Since we are not designating a single force commander at this point, we assume a superheavy tripod
-                    //is the force commander if that gives the highest bonus.
-                    if (entity.hasCommandConsoleBonus() || entity.getCrew().hasActiveTechOfficer()) {
-                        bonus += 2;
-                    }
-                    //Once we've gotten the status of the command console (if any), reset the flag that tracks
-                    //the previous turn's action.
-                    if (bonus > commandb) {
-                        commandb = bonus;
-                    }
-                }
+
+        return getMaxBonusFromEntities(entity -> {
+            int bonus = 0;
+
+            if (game.getOptions().booleanOption(OptionsConstants.RPG_COMMAND_INIT)) {
+                bonus += entity.getCrew().getCommandBonus();
+            }
+
+            if (entity.hasCommandConsoleBonus() || entity.getCrew().hasActiveTechOfficer()) {
+                bonus += 2;
+            }
+
+            return bonus;
+        }, entity -> {
+            if (!(entity instanceof MekWarrior)
+                  && entity.getOwner() != null
+                  && entity.getOwner().equals(this)
+                  && !entity.isDestroyed()
+                  && entity.getCrew().isActive()
+                  && !entity.isCaptured()) {
+                return (entity.isDeployed() && !entity.isOffBoard())
+                      || entity.getDeployRound() == game.getCurrentRound() + 1;
+            }
+            return false;
+        });
+    }
+
+    private int getMaxBonusFromEntities(ToIntFunction<Entity> bonusFunction, Predicate<Entity> condition) {
+        if (game == null) return 0;
+
+        int maxBonus = 0;
+        for (InGameObject obj : game.getInGameObjects()) {
+            if (obj instanceof Entity entity && isMyUnit(entity) && condition.test(entity)) {
+                maxBonus = Math.max(maxBonus, bonusFunction.applyAsInt(entity));
             }
         }
-        return commandb;
+        return maxBonus;
     }
 
     public String getColorForPlayer() {
