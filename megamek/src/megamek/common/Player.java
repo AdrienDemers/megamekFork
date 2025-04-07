@@ -96,8 +96,6 @@ public final class Player extends TurnOrdered {
     private Camouflage camouflage = new Camouflage(Camouflage.COLOUR_CAMOUFLAGE, PlayerColour.BLUE.name());
     private PlayerColour colour = PlayerColour.BLUE;
 
-    private Vector<Minefield> visibleMinefields = new Vector<>();
-
     private boolean admitsDefeat = false;
 
     private List<ICarryable> groundObjectsToPlace = new ArrayList<>();
@@ -107,6 +105,25 @@ public final class Player extends TurnOrdered {
     private transient boolean votedToAllowGameMaster = false;
 
     private HexArea fleeArea = new BorderHexArea(true, true, true, true);
+
+    private final MinefieldManager minefieldManager = new MinefieldManager();
+
+        // Delegate getter/setter if needed
+        public List<Minefield> getVisibleMinefields() {
+            return minefieldManager.getVisibleMinefields();
+        }
+
+        public void addVisibleMinefield(Minefield mf) {
+            minefieldManager.addVisibleMinefield(mf);
+        }
+
+        public void clearVisibleMinefields() {
+            minefieldManager.clear();
+        }
+
+        public boolean hasSeenMinefieldAt(Coords coords) {
+            return minefieldManager.hasSeenAt(coords);
+        }
     //endregion Variable Declarations
 
     //region Constructors
@@ -116,34 +133,8 @@ public final class Player extends TurnOrdered {
     }
     //endregion Constructors
 
-    public Vector<Minefield> getMinefields() {
-        return visibleMinefields;
-    }
-
-    public void addMinefield(Minefield mf) {
-        visibleMinefields.addElement(mf);
-    }
-
-    public void addMinefields(Vector<Minefield> minefields) {
-        for (int i = 0; i < minefields.size(); i++) {
-            visibleMinefields.addElement(minefields.elementAt(i));
-        }
-    }
-
-    public void removeMinefield(Minefield mf) {
-        visibleMinefields.removeElement(mf);
-    }
-
-    public void removeMinefields() {
-        visibleMinefields.removeAllElements();
-    }
-
     public void removeArtyAutoHitHexes() {
         artyAutoHitHexes.removeAllElements();
-    }
-
-    public boolean containsMinefield(Minefield mf) {
-        return visibleMinefields.contains(mf);
     }
 
     public boolean hasMinefields() {
@@ -735,7 +726,9 @@ public final class Player extends TurnOrdered {
         copy.camouflage = camouflage;
         copy.colour = colour;
 
-        copy.visibleMinefields = new Vector<>(visibleMinefields);
+        for (Minefield mf : minefieldManager.getVisibleMinefields()) {
+            copy.addVisibleMinefield(mf);
+        }
 
         copy.admitsDefeat = admitsDefeat;
 
@@ -759,4 +752,33 @@ public final class Player extends TurnOrdered {
     public void setFleeZone(HexArea fleeArea) {
         this.fleeArea = fleeArea;
     }
+
+    //
+    private static class MinefieldManager {
+        private final List<Minefield> visibleMinefields = new Vector<>();
+
+        public List<Minefield> getVisibleMinefields() {
+            return visibleMinefields;
+        }
+
+        public void addVisibleMinefield(Minefield mf) {
+            visibleMinefields.add(mf);
+        }
+
+        public void clear() {
+            visibleMinefields.clear();
+        }
+
+        public boolean hasSeenAt(Coords coords) {
+            for (Minefield mf : visibleMinefields) {
+                if (mf.getCoords().equals(coords)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Add more minefield-related logic here as needed
+    }
+    //
 }
