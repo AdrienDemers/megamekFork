@@ -682,14 +682,9 @@ public final class Player extends TurnOrdered {
      */
     @Override
     public boolean equals(Object object) {
-        if (this == object) {
-            return true;
-        } else if ((null == object) || (getClass() != object.getClass())) {
-            return false;
-        } else {
-            final Player other = (Player) object;
-            return other.id == id;
-        }
+        if (this == object) return true;
+        if (!(object instanceof Player other)) return false;
+        return other.id == id;
     }
 
     @Override
